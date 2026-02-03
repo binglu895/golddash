@@ -157,12 +157,13 @@ FRED_TICKERS = {
 
 # --- Data Fetching Logic ---
 @st.cache_data(ttl=600)  # Cache for 10 minutes
-def get_yfinance_data(tickers, period="1y"):
+def get_yfinance_data(tickers, period="2y"):
     series_list = []
     for name, ticker in tickers.items():
         try:
-            # Add some retries or handle different periods
-            df = yf.download(ticker, period=period, interval="1d", progress=False)
+            # We always fetch a larger period ("2y") to ensure availability 
+            # for 1mo/3mo slices which are prone to empty returns in some APIs
+            df = yf.download(ticker, period="2y", interval="1d", progress=False)
             if not df.empty:
                 # Robust extraction for newer yfinance MultiIndex
                 if isinstance(df.columns, pd.MultiIndex):
@@ -261,17 +262,22 @@ else:
 
 # --- Data Loading ---
 with st.spinner("正在抓取实时数据..."):
-    df_yf = get_yfinance_data(YF_TICKERS, period=y_period)
+    # Always fetch 2y baseline, slicing will happen later
+    df_yf = get_yfinance_data(YF_TICKERS, period="2y")
     df_fred = get_fred_data(FRED_TICKERS, start_date)
 
     # Note: df_yf and df_fred are already clean from the helper functions
 
-# --- Core Logic & Calculations ---
 # Merge all data
 df_all = pd.concat([df_yf, df_fred], axis=1)
 
 # Final deduplication
 df_all = df_all.loc[~df_all.index.duplicated(keep='last')].ffill()
+
+# --- Slicing Logic ---
+# Crop the data to the user's selected start_date after the ffill
+# This ensures we have the latest data even if today's quote is late
+df_all = df_all[df_all.index >= pd.to_datetime(start_date)]
 
 # Automated FedWatch Estimate (Prob No Change)
 # Logic: If implied rate (100-Price) is near FedFunds, prob is high.
