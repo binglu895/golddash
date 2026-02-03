@@ -17,10 +17,10 @@ RUN pip install --upgrade pip && \
 # 复制项目所有文件到工作目录
 COPY . .
 
-# 暴露 Streamlit 默认端口
-EXPOSE 8501
+# 暴露 8080 端口 (PaaS 平台通用标准)
+EXPOSE 8080
 
 # 启动命令
-# --server.address=0.0.0.0 : 允许外部需访问
-# --server.port=8501 : 指定端口
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# --server.port=8080 : 改用 8080 端口，配合 Zeabur 默认探测
+# --browser.gatherUsageStats=false : 生产环境关闭统计，减少日志噪音
+CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--browser.gatherUsageStats=false"]
