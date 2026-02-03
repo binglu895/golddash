@@ -161,31 +161,36 @@ def get_yfinance_data(tickers, period="1y"):
     series_list = []
     for name, ticker in tickers.items():
         try:
+            # Add some retries or handle different periods
             df = yf.download(ticker, period=period, interval="1d", progress=False)
             if not df.empty:
-                # Handle potential MultiIndex columns (yfinance sometimes returns them)
+                # Robust extraction for newer yfinance MultiIndex
                 if isinstance(df.columns, pd.MultiIndex):
-                    # Usually the first level is 'Close' or similar, we want that
-                    # But often it's multi-ticker multi-level. We just need the actual data column.
-                    # Simplest way: just take the 'Close' column if it exists across levels
-                    content = df['Close']
-                    if isinstance(content, pd.DataFrame):
-                        # If multiple tickers in one download (not our case but safer)
-                        content = content.iloc[:, 0]
+                    if 'Close' in df.columns.get_level_values(0):
+                        content = df['Close']
+                    else:
+                        content = df.iloc[:, 0] # Fallback to first column
                 else:
-                    content = df['Close']
+                    if 'Close' in df.columns:
+                        content = df['Close']
+                    else:
+                        content = df.iloc[:, 0]
+                
+                # If still a DataFrame (multiple columns under 'Close'), take the first
+                if isinstance(content, pd.DataFrame):
+                    content = content.iloc[:, 0]
                 
                 content.name = name
                 series_list.append(content)
+            else:
+                st.warning(f"⚠️ {name} ({ticker}) 返回数据为空。")
         except Exception as e:
             st.error(f"Error fetching {name} ({ticker}): {e}")
     
     if not series_list:
         return pd.DataFrame()
         
-    # Using pd.concat is much more robust than pd.DataFrame(dict)
     df = pd.concat(series_list, axis=1)
-    # Deduplicate index (keep last) to prevent reindexing errors
     return df.loc[~df.index.duplicated(keep='last')]
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -197,8 +202,8 @@ def get_fred_data(tickers, start_date):
     try:
         fred = Fred(api_key=FRED_API_KEY)
         series_list = []
-        # Increase lookback window slightly to ensure we get data
-        buffer_start = start_date - timedelta(days=7)
+        # Increase lookback window significantly for quarterly data (Interest to GDP etc.)
+        buffer_start = start_date - timedelta(days=150) 
         
         for name, ticker in tickers.items():
             try:
@@ -206,6 +211,8 @@ def get_fred_data(tickers, start_date):
                 if not series.empty:
                     series.name = name
                     series_list.append(series)
+                else:
+                    st.warning(f"⚠️ FRED 指标 {name} ({ticker}) 无有效数据。")
             except Exception as e:
                 st.error(f"无法获取 {name} ({ticker}): {e}")
         
@@ -213,9 +220,7 @@ def get_fred_data(tickers, start_date):
             return pd.DataFrame()
             
         df = pd.concat(series_list, axis=1)
-        # Deduplicate index (keep last)
         df = df.loc[~df.index.duplicated(keep='last')]
-        # Sort and ffill to handle different release schedules
         df = df.sort_index().ffill()
         return df[df.index >= pd.to_datetime(start_date)]
     except Exception as e:
@@ -290,7 +295,12 @@ if "FFF" in df_all.columns and "FedFunds" in df_all.columns:
         pass
 
 # Drop rows where we don't have basic Price data
-df_all = df_all.dropna(subset=["Gold"])
+if "Gold" in df_all.columns:
+    df_all = df_all.dropna(subset=["Gold"])
+else:
+    st.error("❌ 基础金价数据 (Gold) 抓取失败。这可能是由于网络问题或数据源暂时不可用。")
+    st.info("尝试检查你的网络连接或稍后刷新页面。")
+    st.stop()
 
 # Fisher Equation: Real Yield = Nominal (YF) - Breakeven (FRED)
 if "10Y_Nominal_YF" in df_all.columns and "10Y_Breakeven_FRED" in df_all.columns:
