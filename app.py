@@ -141,14 +141,18 @@ YF_TICKERS = {
     "DXY": "DX-Y.NYB",
     "10Y_Nominal_YF": "^TNX",  # Primary source for Nominal
     "GLD": "GLD",
-    "FFF": "ZQ=F"               # 30-Day Fed Funds Futures
+    "FFF": "ZQ=F",              # 30-Day Fed Funds Futures
+    "VIX": "^VIX",              # Equity Volatility
+    "GVZ": "^GVZ"               # Gold Volatility
 }
 
 FRED_TICKERS = {
     "10Y_Breakeven_FRED": "T10YIE",  # Primary source for Breakeven
     "2Y_Nominal": "DGS2",
     "FedFunds": "FEDFUNDS",
-    "SOFR": "SOFR"
+    "SOFR": "SOFR",
+    "Interest_to_GDP": "A091RC1Q027SBEA", # Interest payments on federal debt
+    "Federal_Debt_GDP": "GFDEGDQ188S"      # Federal Debt as % of GDP
 }
 
 # --- Data Fetching Logic ---
@@ -346,6 +350,13 @@ if "Fed_Expectations" in df_all.columns:
     current_spread = df_all["Fed_Expectations"].iloc[-1]
     
     # Logic Implementation
+    # Logic Implementation
+    # Sentiment Weighting
+    vix_val = df_all["VIX"].iloc[-1] if "VIX" in df_all.columns else 0
+    gvz_val = df_all["GVZ"].iloc[-1] if "GVZ" in df_all.columns else 0
+    gold_is_up = gold_pct_change > 0 if 'gold_pct_change' in locals() else False
+    gold_is_high = df_all["Gold"].iloc[-1] > df_all["Gold"].rolling(20).mean().iloc[-1] if len(df_all) > 20 else False
+
     # Scenario 1: Bearish
     if fedwatch_prob > 80 and current_spread > -0.15:
         box_bg = "rgba(255, 75, 75, 0.15)"
@@ -369,6 +380,14 @@ if "Fed_Expectations" in df_all.columns:
         box_border = "#BBBBBB"
         status_text = "⬜ 市场中性 - 震荡整理"
         advice_text = "宏观信号暂不明确，建议观望或进行区间波段操作。"
+
+    # Override for Sentiment Scenarios
+    if vix_val > 25 and gold_is_up:
+        status_text = "🔥 避险共振强度极高"
+        advice_text = "美股恐慌触发黄金避险买盘，建议持有，关注 VIX 25 水位支撑。"
+    elif gvz_val > 25 and gold_is_high:
+        status_text = "⚠️ 警惕狂热多头踩踏"
+        advice_text = "黄金自身波动率 (GVZ) 过高且处于相对高位，谨防获利盘踩踏。建议：收紧止损。"
 
     st.markdown(f"""
     <div style="background-color: {box_bg}; border-left: 5px solid {box_border}; padding: 20px; border-radius: 10px; border: 1px solid {box_bg.replace('0.15', '0.3')}; margin-bottom: 25px;">
@@ -477,6 +496,54 @@ if not df_dxy_30.empty:
         template="plotly_dark"
     )
     st.plotly_chart(fig3, use_container_width=True)
+
+st.divider()
+
+# --- Macro Narrative & Sentiment Monitoring Zone ---
+with st.container():
+    st.markdown("""
+        <div style="background-color: #1c1f26; padding: 25px; border-radius: 15px; border: 1px solid #2d3139; margin-bottom: 30px;">
+            <h2 style="color: #FFD700; margin-top: 0;">🕸️ 2026 宏观叙事与避险深度监控</h2>
+            <p style="color: #FFFFFF !important; font-size: 0.95rem; opacity: 1 !important;">
+                分析维度：美元信用摩擦 (Interest/GDP) 与 市场避险情绪溢价 (VIX/GVZ)
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m_col1, m_col2 = st.columns(2)
+    
+    with m_col1:
+        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">⚖️ 美元信用锚点 (2026 主旋律)</p>', unsafe_allow_html=True)
+        if "Interest_to_GDP" in df_all.columns and "DXY" in df_all.columns:
+            fig_debt = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_debt.add_trace(
+                go.Scatter(x=df_all.index, y=df_all["Interest_to_GDP"], name="联邦利息支出(GDP%)", line=dict(color="#FF4B4B", width=3, shape='hv')),
+                secondary_y=False,
+            )
+            fig_debt.add_trace(
+                go.Scatter(x=df_all.index, y=df_all["DXY"], name="美元指数 (DXY)", line=dict(color="#FFFFFF", width=2)),
+                secondary_y=True,
+            )
+            fig_debt.update_layout(height=400, template="plotly_dark", margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            fig_debt.update_yaxes(title_text="利息支出 (%)", secondary_y=False)
+            fig_debt.update_yaxes(title_text="DXY 指数", secondary_y=True)
+            st.plotly_chart(fig_debt, use_container_width=True)
+            st.caption("注：利息支出斜率变陡代表美元信用的“磨损”，是黄金的长线利多。")
+        else:
+            st.warning("利息支出或 DXY 数据缺失，无法生成信用锚点图。")
+
+    with m_col2:
+        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">🌡️ 情绪避险温度计</p>', unsafe_allow_html=True)
+        if "VIX" in df_all.columns and "GVZ" in df_all.columns:
+            fig_sentiment = go.Figure()
+            fig_sentiment.add_trace(go.Scatter(x=df_all.index, y=df_all["VIX"], name="VIX (美股恐慌)", line=dict(color="#FFCC00", width=2)))
+            fig_sentiment.add_trace(go.Scatter(x=df_all.index, y=df_all["GVZ"], name="GVZ (黄金波动)", line=dict(color="#00FFAA", width=2, dash='dot')))
+            fig_sentiment.update_layout(height=400, template="plotly_dark", margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            fig_sentiment.update_yaxes(title_text="波动率指数")
+            st.plotly_chart(fig_sentiment, use_container_width=True)
+            st.caption("注：VIX > 25 常伴随避险买盘，GVZ > 25 需警惕黄金短期过热。")
+        else:
+            st.warning("VIX 或 GVZ 数据缺失，无法生成情绪温度计。")
 
 # --- Footer ---
 st.caption("数据来源: Yahoo Finance (yfinance) & Federal Reserve Economic Data (FRED). 更新时间: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
