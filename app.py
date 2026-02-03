@@ -100,8 +100,16 @@ st.markdown("""
         opacity: 1 !important;
     }
     
-    [data-testid="stSidebar"] label {
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] [data-testid="stHeader"] {
         color: #ffffff !important;
+    }
+    
+    /* Ensure all headers in sidebar are white */
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3 {
+        color: #FFFFFF !important;
     }
     
     /* Divider - subtle line */
@@ -132,7 +140,8 @@ YF_TICKERS = {
     "Gold": "GC=F",
     "DXY": "DX-Y.NYB",
     "10Y_Nominal_YF": "^TNX",  # Primary source for Nominal
-    "GLD": "GLD"
+    "GLD": "GLD",
+    "FFF": "ZQ=F"               # 30-Day Fed Funds Futures
 }
 
 FRED_TICKERS = {
@@ -221,19 +230,6 @@ time_range = st.sidebar.selectbox(
     index=2
 )
 
-st.sidebar.divider()
-st.sidebar.subheader("🎯 宏观预期 (FedWatch)")
-# Updated default based on Feb 2026 market data (91.1%)
-fedwatch_prob = st.sidebar.slider(
-    "3月'不降息'概率 (%)",
-    min_value=0,
-    max_value=100,
-    value=91, 
-    step=1,
-    help="最新市场预期(2月)显示概率约为 91.1%"
-)
-st.sidebar.markdown("[🔗 打开 CME FedWatch 官网](https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html)")
-
 # Map time range to yfinance period strings
 period_map = {
     "1个月": "1mo",
@@ -267,6 +263,27 @@ df_all = pd.concat([df_yf, df_fred], axis=1)
 
 # Final deduplication
 df_all = df_all.loc[~df_all.index.duplicated(keep='last')].ffill()
+
+# Automated FedWatch Estimate (Prob No Change)
+# Logic: If implied rate (100-Price) is near FedFunds, prob is high.
+fedwatch_prob = 90 # Default fallback
+if "FFF" in df_all.columns and "FedFunds" in df_all.columns:
+    try:
+        latest_fff = df_all["FFF"].dropna().iloc[-1]
+        implied_rate = 100 - latest_fff
+        current_ff = df_all["FedFunds"].dropna().iloc[-1]
+        
+        # Sensitivity: diff is how much market expects rate to drop
+        diff = current_ff - implied_rate
+        if diff <= 0:
+            fedwatch_prob = 95
+        elif diff >= 0.25:
+            fedwatch_prob = 10
+        else:
+            # Linear interpolation between 95 and 10
+            fedwatch_prob = int(95 - (diff / 0.25) * 85)
+    except Exception:
+        pass
 
 # Drop rows where we don't have basic Price data
 df_all = df_all.dropna(subset=["Gold"])
@@ -327,38 +344,40 @@ st.subheader("🔭 宏观情绪与交易建议")
 # Calculate metrics for SOP
 if "Fed_Expectations" in df_all.columns:
     current_spread = df_all["Fed_Expectations"].iloc[-1]
-    prob_val = fedwatch_prob / 100.0
     
     # Logic Implementation
     # Scenario 1: Bearish
     if fedwatch_prob > 80 and current_spread > -0.15:
-        bg_color = "#ff4b4b22"  # Semi-transparent red
-        border_color = "#ff4b4b"
+        box_bg = "rgba(255, 75, 75, 0.15)"
+        box_border = "#FF4B4B"
         status_text = "🟥 宏观逆风 - 降息预期冰封"
-        advice_text = "市场已接受高利率现实，黄金缺乏向上动能。建议：逢高减仓，等待 10Y 实际利率回落。"
+        advice_text = "市场已接受高利率现实，黄金缺乏向上动能。建议逢高减仓，等待 10Y 实际利率回落。"
     # Scenario 2: Divergence
     elif fedwatch_prob > 80 and current_spread < -0.30:
-        bg_color = "#ffa50022"  # Semi-transparent orange
-        border_color = "#ffa500"
+        box_bg = "rgba(255, 165, 0, 0.15)"
+        box_border = "#FFA500"
         status_text = "🟨 背离警报 - 资金抢跑降息"
         advice_text = "尽管美联储嘴硬，但债券市场在强行定价未来降息。黄金可能出现“利空出尽”的暴力反弹。建议：左侧分批埋伏多单。"
     # Scenario 3: Bullish
     elif fedwatch_prob < 50 and current_spread < -0.40:
-        bg_color = "#00cc6622"  # Semi-transparent green
-        border_color = "#00cc66"
+        box_bg = "rgba(0, 204, 102, 0.15)"
+        box_border = "#00CC66"
         status_text = "🟩 极度利多 - 降息周期开启"
         advice_text = "市场达成降息共识。建议：顺势做多，直到实际利率跌破 1.5%。"
     else:
-        bg_color = "#0f121a"
-        border_color = "#1c1f26"
+        box_bg = "rgba(128, 128, 128, 0.1)"
+        box_border = "#BBBBBB"
         status_text = "⬜ 市场中性 - 震荡整理"
         advice_text = "宏观信号暂不明确，建议观望或进行区间波段操作。"
 
     st.markdown(f"""
-        <div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 5px; margin-bottom: 25px;">
-            <h3 style="margin-top:0; color: {border_color}; font-size: 1.2rem;">{status_text}</h3>
-            <p style="margin-bottom:0; font-size: 1.1rem; color: #e0e0e0;"><b>交易建议：</b>{advice_text}</p>
-        </div>
+    <div style="background-color: {box_bg}; border-left: 5px solid {box_border}; padding: 20px; border-radius: 10px; border: 1px solid {box_bg.replace('0.15', '0.3')}; margin-bottom: 25px;">
+        <h3 style="margin-top: 0px; color: {box_border}; font-size: 1.3rem;">{status_text}</h3>
+        <p style="margin-bottom: 10px; font-size: 1.1rem; color: #FFFFFF; line-height: 1.6; font-weight: 500;">
+            <b>交易建议：</b>{advice_text}
+        </p>
+        <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" style="color: #BBBBBB; font-size: 0.8rem; text-decoration: none;">🔗 数据来源：CME FedWatch Tool (基于 ZQ=F 期货自动估算: {fedwatch_prob}%)</a>
+    </div>
     """, unsafe_allow_html=True)
 else:
     st.info("数据加载中，暂无法生成宏观分析...")
