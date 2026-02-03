@@ -78,16 +78,15 @@ except KeyError:
 YF_TICKERS = {
     "Gold": "GC=F",
     "DXY": "DX-Y.NYB",
-    "10Y_TNX": "^TNX",  # Renamed to avoid collision
+    "10Y_Nominal_YF": "^TNX",  # Primary source for Nominal
     "GLD": "GLD"
 }
 
 FRED_TICKERS = {
-    "10Y_Nominal": "DGS10",      # 10-Year Treasury Yield
-    "10Y_Breakeven": "T10YIE",   # 10-Year Breakeven Inflation
-    "2Y_Nominal": "DGS2",        # 2-Year Treasury Yield (proxy for Fed)
-    "FedFunds": "FEDFUNDS",      # Current Fed Funds Rate
-    "SOFR": "SOFR"               # SOFR Rate
+    "10Y_Breakeven_FRED": "T10YIE",  # Primary source for Breakeven
+    "2Y_Nominal": "DGS2",
+    "FedFunds": "FEDFUNDS",
+    "SOFR": "SOFR"
 }
 
 # --- Data Fetching Logic ---
@@ -203,14 +202,14 @@ df_all = pd.concat([df_yf, df_fred], axis=1)
 # Final deduplication
 df_all = df_all.loc[~df_all.index.duplicated(keep='last')].ffill()
 
-# Drop rows where we don't have basic Price data, but keep those with partial rate data
+# Drop rows where we don't have basic Price data
 df_all = df_all.dropna(subset=["Gold"])
 
-# Calculate 10Y Real Rate: Nominal - Breakeven
-if "10Y_Nominal" in df_all.columns and "10Y_Breakeven" in df_all.columns:
-    df_all["10Y_Real_Calculated"] = df_all["10Y_Nominal"] - df_all["10Y_Breakeven"]
+# Fisher Equation: Real Yield = Nominal (YF) - Breakeven (FRED)
+if "10Y_Nominal_YF" in df_all.columns and "10Y_Breakeven_FRED" in df_all.columns:
+    df_all["10Y_Real"] = df_all["10Y_Nominal_YF"] - df_all["10Y_Breakeven_FRED"]
 else:
-    df_all["10Y_Real_Calculated"] = 0
+    df_all["10Y_Real"] = 0
 
 # Calculate Fed Expectations (2Y - FedFunds)
 if "2Y_Nominal" in df_all.columns and "FedFunds" in df_all.columns:
@@ -233,14 +232,14 @@ if not df_yf.empty:
     gold_pct_change = ((current_gold - prev_gold) / prev_gold) * 100
     col1.metric("金价 (USD)", f"${current_gold:.2f}", f"{gold_pct_change:+.2f}%")
 
-if "10Y_Nominal" in df_all.columns:
-    col2.metric("10Y 名义收益率", f"{df_all['10Y_Nominal'].iloc[-1]:.2f}%")
+if "10Y_Nominal_YF" in df_all.columns:
+    col2.metric("10Y 名义利率(TNX)", f"{df_all['10Y_Nominal_YF'].iloc[-1]:.2f}%")
 
-if "10Y_Breakeven" in df_all.columns:
-    col3.metric("10Y 盈亏平衡(通胀)", f"{df_all['10Y_Breakeven'].iloc[-1]:.2f}%")
+if "10Y_Breakeven_FRED" in df_all.columns:
+    col3.metric("10Y 盈亏平衡(FRED)", f"{df_all['10Y_Breakeven_FRED'].iloc[-1]:.2f}%")
 
-if "10Y_Real_Calculated" in df_all.columns:
-    real_rate = df_all["10Y_Real_Calculated"].iloc[-1]
+if "10Y_Real" in df_all.columns:
+    real_rate = df_all["10Y_Real"].iloc[-1]
     col4.metric("10Y 实际利率", f"{real_rate:.2f}%")
 
 if "Fed_Expectations" in df_all.columns:
@@ -267,7 +266,7 @@ fig1.add_trace(
 )
 
 fig1.add_trace(
-    go.Scatter(x=df_all.index, y=df_all["10Y_Real_Calculated"], name="10Y 实际利率 (Calculated)", line=dict(color="#00CED1", width=2, dash='dot')),
+    go.Scatter(x=df_all.index, y=df_all["10Y_Real"], name="10Y 实际利率 (Calculated)", line=dict(color="#00CED1", width=2, dash='dot')),
     secondary_y=True,
 )
 
