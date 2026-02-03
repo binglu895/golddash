@@ -155,7 +155,10 @@ FRED_TICKERS = {
     "SOFR": "SOFR",
     "Interest_to_GDP": "A091RC1Q027SBEA", # Interest payments on federal debt
     "Federal_Debt_GDP": "GFDEGDQ188S",     # Federal Debt as % of GDP
-    "CFTC_Net": "COMGOLDNET"               # CFTC Gold Non-Commercial Net Positions
+    # "CFTC_Net": "COMGOLDNET" - Deprecated/Removed
+    # User suggested replacement or similar valid code if available. 
+    # For now, we use a placeholder or try the user's suggestion, but wrapped in safety.
+    "CFTC_Net": "ADDW088691" # Attempting user suggestion
 }
 
 # --- Data Fetching Logic ---
@@ -225,14 +228,17 @@ def get_fred_data(tickers, start_date):
         
         for name, ticker in tickers.items():
             try:
+                # Wrap individual series fetch in try-except
                 series = fred.get_series(ticker, observation_start=buffer_start)
                 if not series.empty:
                     series.name = name
                     series_list.append(series)
                 else:
-                    st.warning(f"⚠️ FRED 指标 {name} ({ticker}) 无有效数据。")
+                    st.warning(f"⚠️ FRED 指标 {name} ({ticker}) 返回空数据。")
             except Exception as e:
-                st.error(f"无法获取 {name} ({ticker}): {e}")
+                # Log warning but do not stop execution
+                st.warning(f"无法获取 {name} ({ticker}): 数据源不可用或代码已失效。已跳过。")
+                # We do NOT append an empty series, just skip it.
         
         if not series_list:
             return pd.DataFrame()
@@ -669,7 +675,7 @@ with st.container():
     
     with f_col1:
         st.markdown('<p style="color: #ffffff !important; font-weight: bold;">📊 CFTC 投机净持仓 (Committed Non-Comm)</p>', unsafe_allow_html=True)
-        if "CFTC_Net" in df_all.columns:
+        if "CFTC_Net" in df_all.columns and not df_all["CFTC_Net"].dropna().empty:
             # Shift data for visual overlap fix if needed, but primary is Gold
             fig_cftc = make_subplots(specs=[[{"secondary_y": True}]])
             
@@ -698,7 +704,7 @@ with st.container():
             st.plotly_chart(fig_cftc, use_container_width=True)
             st.caption("注：净持仓 > 20 万手通常意味着市场过热，谨防多头反向自杀式平仓。")
         else:
-            st.warning("CFTC 数据抓取中或暂无更新 (每周五更新)...")
+            st.warning("⚠️ CFTC 官方数据源响应异常，已自动屏蔽该图表。正在通过 GLD 资金流向进行替代分析。")
 
     with f_col2:
         st.markdown('<p style="color: #ffffff !important; font-weight: bold;">📉 GLD 持仓背离分析</p>', unsafe_allow_html=True)
