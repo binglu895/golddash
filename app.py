@@ -372,19 +372,11 @@ if "Fed_Expectations" in df_all.columns:
 
     st.markdown(f"""
     <div style="background-color: {box_bg}; border-left: 5px solid {box_border}; padding: 20px; border-radius: 10px; border: 1px solid {box_bg.replace('0.15', '0.3')}; margin-bottom: 25px;">
-        <h3 style="margin-top: 0px; color: {box_border}; font-size: 1.3rem; font-weight: 700;">
-            {status_text}
-        </h3>
-        
-        <p style="margin-bottom: 12px; font-size: 1.1rem; color: #FFFFFF !important; line-height: 1.6; font-weight: 600;">
-            <span style="color: #FFD700;">交易建议：</span>{advice_text}
+        <h3 style="margin-top: 0px; color: {box_border}; font-size: 1.3rem;">{status_text}</h3>
+        <p style="margin-bottom: 10px; font-size: 1.1rem; color: #FFFFFF; line-height: 1.6; font-weight: 500;">
+            <b>交易建议：</b>{advice_text}
         </p>
-        
-        <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" 
-           target="_blank" 
-           style="color: #CCCCCC !important; font-size: 0.85rem; text-decoration: underline; opacity: 1 !important;">
-           🔗 数据来源：CME FedWatch Tool (基于 ZQ=F 期货自动估算: {fedwatch_prob}%)
-        </a>
+        <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" style="color: #BBBBBB; font-size: 0.8rem; text-decoration: none;">🔗 数据来源：CME FedWatch Tool (基于 ZQ=F 期货自动估算: {fedwatch_prob}%)</a>
     </div>
     """, unsafe_allow_html=True)
 else:
