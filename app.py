@@ -214,6 +214,34 @@ def get_fred_data(tickers, start_date):
 
 st.title("💰 黄金市场投研 Dashboard")
 
+# --- Sidebar ---
+st.sidebar.header("🕹️ 控制面板")
+time_range = st.sidebar.selectbox(
+    "回溯时间范围",
+    options=["1个月", "3个月", "1年", "2年"],
+    index=2
+)
+
+# Map time range to yfinance period strings
+period_map = {
+    "1个月": "1mo",
+    "3个月": "3mo",
+    "1年": "1y",
+    "2年": "2y"
+}
+y_period = period_map[time_range]
+
+# Calculate start date for FRED
+end_date = datetime.today()
+if time_range == "1个月":
+    start_date = end_date - timedelta(days=30)
+elif time_range == "3个月":
+    start_date = end_date - timedelta(days=90)
+elif time_range == "1年":
+    start_date = end_date - timedelta(days=365)
+else:
+    start_date = end_date - timedelta(days=730)
+
 # --- Data Loading ---
 with st.spinner("正在抓取实时数据..."):
     df_yf = get_yfinance_data(YF_TICKERS, period=y_period)
@@ -242,14 +270,6 @@ if not df_yf.empty and "FFF" in df_yf.columns and not df_fred.empty and "FedFund
             auto_prob = int(95 - (diff / 0.25) * 85)
     except:
         pass
-
-# --- Sidebar ---
-st.sidebar.header("🕹️ 控制面板")
-time_range = st.sidebar.selectbox(
-    "回溯时间范围",
-    options=["1个月", "3个月", "1年", "2年"],
-    index=2
-)
 
 st.sidebar.divider()
 st.sidebar.subheader("🎯 宏观预期 (FedWatch)")
