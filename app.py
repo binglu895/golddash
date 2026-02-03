@@ -82,15 +82,22 @@ st.markdown("""
     }
 
     /* Sidebar - dark and sleek with white text */
-    [data-testid="stSidebar"], 
-    [data-testid="stSidebar"] * {
-        background-color: #0f121a;
+    [data-testid="stSidebar"] {
+        background-color: #0E1117 !important;
         border-right: 1px solid #1c1f26;
-        color: #ffffff !important;
     }
-    
+
+    [data-testid="stSidebar"] [data-testid="stHeading"] h2 {
+        color: #FFD700 !important; /* 强制改为金色 */
+        font-weight: 700 !important;
+        letter-spacing: 1px;
+        margin-bottom: -10px; /* 紧凑布局 */
+    }
+
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
     [data-testid="stSidebar"] .stMarkdown p {
-        color: #ffffff !important;
+        color: #FFFFFF !important; /* 确保普通段落文字为纯白 */
+        opacity: 1 !important;
     }
     
     [data-testid="stSidebar"] label {
