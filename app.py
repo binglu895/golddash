@@ -143,6 +143,34 @@ FRED_TICKERS = {
     "SOFR": "SOFR"
 }
 
+# --- Sidebar Configuration (High Priority) ---
+st.sidebar.header("🕹️ 控制面板")
+time_range = st.sidebar.selectbox(
+    "回溯时间范围",
+    options=["1个月", "3个月", "1年", "2年"],
+    index=2
+)
+
+# Map time range to yfinance period strings
+period_map = {
+    "1个月": "1mo",
+    "3个月": "3mo",
+    "1年": "1y",
+    "2年": "2y"
+}
+y_period = period_map[time_range]
+
+# Calculate start date for FRED
+end_date = datetime.today()
+if time_range == "1个月":
+    start_date = end_date - timedelta(days=30)
+elif time_range == "3个月":
+    start_date = end_date - timedelta(days=90)
+elif time_range == "1年":
+    start_date = end_date - timedelta(days=365)
+else:
+    start_date = end_date - timedelta(days=730)
+
 # --- Data Fetching Logic ---
 @st.cache_data(ttl=600)  # Cache for 10 minutes
 def get_yfinance_data(tickers, period="1y"):
@@ -211,36 +239,7 @@ def get_fred_data(tickers, start_date):
         return pd.DataFrame()
 
 # --- Main Application ---
-
 st.title("💰 黄金市场投研 Dashboard")
-
-# --- Sidebar ---
-st.sidebar.header("🕹️ 控制面板")
-time_range = st.sidebar.selectbox(
-    "回溯时间范围",
-    options=["1个月", "3个月", "1年", "2年"],
-    index=2
-)
-
-# Map time range to yfinance period strings
-period_map = {
-    "1个月": "1mo",
-    "3个月": "3mo",
-    "1年": "1y",
-    "2年": "2y"
-}
-y_period = period_map[time_range]
-
-# Calculate start date for FRED
-end_date = datetime.today()
-if time_range == "1个月":
-    start_date = end_date - timedelta(days=30)
-elif time_range == "3个月":
-    start_date = end_date - timedelta(days=90)
-elif time_range == "1年":
-    start_date = end_date - timedelta(days=365)
-else:
-    start_date = end_date - timedelta(days=730)
 
 # --- Data Loading ---
 with st.spinner("正在抓取实时数据..."):
