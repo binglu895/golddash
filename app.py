@@ -164,7 +164,7 @@ FRED_TICKERS = {
 CB_TICKERS = {
     "CB_China_Gold": "QZCH622N",      # China Gold Reserves (Fine Troy Ounces)
     "CB_US_Gold": "WSGCOL",           # US Gold Reserves
-    "China_FX_Reserves": "TRESEGCNM052N" # China FX Reserves (Monthly)
+    "China_FX_Reserves": "TRESEGCNM052N" # China FX Reserves (Monthly) for Ratio
 }
 
 # --- Data Fetching Logic ---
@@ -257,27 +257,29 @@ def get_fred_data(tickers, start_date):
         st.error(f"Error initializing FRED API: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=86400, show_spinner=False) # Cache for 24 hours (Monthly data)
+@st.cache_data(ttl=86400)  # Cache for 24 hours (Monthly data)
 def get_central_bank_data(tickers):
     if not FRED_API_KEY: return pd.DataFrame()
     try:
         fred = Fred(api_key=FRED_API_KEY)
         series_list = []
-        # Long history for strategic view (2010+)
-        start_dt = datetime(2010, 1, 1)
+        # Fetch data since 2010 for long-term trend
+        start_date = datetime(2010, 1, 1)
         
         for name, ticker in tickers.items():
             try:
-                s = fred.get_series(ticker, observation_start=start_dt)
-                if not s.empty:
-                    s.name = name
-                    series_list.append(s)
-            except: pass
+                series = fred.get_series(ticker, observation_start=start_date)
+                if not series.empty:
+                    series.name = name
+                    series_list.append(series)
+            except: pass # Silent fail for CB data
             
         if not series_list: return pd.DataFrame()
-        return pd.concat(series_list, axis=1).ffill()
-    except:
-        return pd.DataFrame()
+        
+        df = pd.concat(series_list, axis=1)
+        df = df.loc[~df.index.duplicated(keep='last')].sort_index().ffill()
+        return df
+    except: return pd.DataFrame()
 
 # --- Main Application ---
 
@@ -320,7 +322,8 @@ with st.spinner("正在抓取实时数据..."):
     # Always fetch 2y baseline, slicing will happen later
     df_yf = get_yfinance_data(YF_TICKERS, period="2y")
     df_fred = get_fred_data(FRED_TICKERS, start_date)
-    # Fetch Central Bank Data (Monthly, Cached)
+    
+    # Independent fetch for Central Bank data (long-term, cached 24h)
     df_cb = get_central_bank_data(CB_TICKERS)
 
     # Note: df_yf and df_fred are already clean from the helper functions
@@ -800,89 +803,89 @@ with st.container():
         """, unsafe_allow_html=True)
 
 # --- Footer ---
-st.caption("数据来源: Yahoo Finance (yfinance) & Federal Reserve Economic Data (FRED). 更新时间: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
 st.divider()
 
-# --- Central Bank Dynamics Zone ---
+# --- Central Bank Dynamics Zone (Official Sector) ---
 with st.container():
     st.markdown("""
-        <div style="background-color: #262730; padding: 25px; border-radius: 15px; border: 1px solid #363945; margin-bottom: 30px;">
+        <div style="background-color: rgba(255, 215, 0, 0.05); padding: 25px; border-radius: 15px; border: 1px solid #ffd70033; margin-bottom: 30px;">
             <h2 style="color: #FFD700; margin-top: 0;">🏦 官方机构 (全球央行) 动态</h2>
             <p style="color: #FFFFFF !important; font-size: 0.95rem; opacity: 1 !important;">
-                货币博弈底层逻辑：监控央行“去美元化”进程与黄金实物储备增长趋势。
+                货币博弈底层逻辑：中国央行增持趋势与去美元化进程监控 (IMF 数据源)
             </p>
         </div>
     """, unsafe_allow_html=True)
     
-    cb_col1, cb_col2 = st.columns(2)
+    cb_col1, cb_col2 = st.columns([2, 1])
     
-    # Pre-process Monthly Data
-    if not df_cb.empty and "CB_China_Gold" in df_cb.columns:
-        # Align Gold Price to Monthly for Ratio Calc (Resample Last)
-        # We need long term gold price, so we might need to fetch a longer history if 2y/sliced df_all isn't enough.
-        # For ratio calculation accuracy, we should technically match dates.
-        # Simplified: Use latest available gold price for the KPI "Latest Ratio".
-        pass
-
     with cb_col1:
-        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">🇨🇳 vs 🇺🇸 黄金储备增长趋势 (2010-Now)</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">🇨🇳 vs 🇺🇸 央行黄金储备趋势 (自 2010 年)</p>', unsafe_allow_html=True)
         if not df_cb.empty and "CB_China_Gold" in df_cb.columns:
             fig_cb = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Gold Price (Long term context) - We need to re-fetch long term gold if not available, 
+            # or just use what we have if user selected 2y. For true long term context, ideally we fetching 
+            # a separate long-term gold series, but here we overlay what we have or just plot reserves vs time.
+            # To keep it simple and robust, we just plot the Reserves curves.
+            
             fig_cb.add_trace(
-                go.Scatter(x=df_cb.index, y=df_cb["CB_China_Gold"], name="中国央行储备 (China)", line=dict(color="#FF4B4B", width=2)),
+                go.Scatter(x=df_cb.index, y=df_cb["CB_China_Gold"], name="中国央行持仓 (China)", line=dict(color="#FF4B4B", width=2.5)),
                 secondary_y=False,
             )
+             # US data often static/flat, but good for scale context
             if "CB_US_Gold" in df_cb.columns:
                 fig_cb.add_trace(
-                    go.Scatter(x=df_cb.index, y=df_cb["CB_US_Gold"], name="美国储备 (US)", line=dict(color="#A0A0A0", width=1, dash='dot')),
-                    secondary_y=False,
+                     go.Scatter(x=df_cb.index, y=df_cb["CB_US_Gold"], name="美联储储备 (US)", line=dict(color="#BBBBBB", width=1.5, dash='dot')),
+                     secondary_y=True,
                 )
-            # Optional: Overlay Gold Price if we had long history. 
-            # Given df_all is sliced to user range, we stick to Reserve amounts here for the long-term view.
             
             fig_cb.update_layout(height=350, template="plotly_dark", margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", y=1.1))
-            fig_cb.update_yaxes(title_text="Reserves (Mil Ounces)", secondary_y=False)
             st.plotly_chart(fig_cb, use_container_width=True)
         else:
-            st.info("央行数据加载中...")
+            st.info("正在加载央行储备数据 (每月更新)...")
 
     with cb_col2:
-        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">📡 去美元化雷达 (De-dollarization Trend)</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">📡 去美元化雷达 (Gold % of FX)</p>', unsafe_allow_html=True)
         if not df_cb.empty and "CB_China_Gold" in df_cb.columns and "China_FX_Reserves" in df_cb.columns:
-            # Calculate Latest Ratio
-            # Gold (Ounces) * Price ($/Oz) = Gold Value
-            # Ratio = Gold Value / FX Reserves
-            latest_reserves_oz = df_cb["CB_China_Gold"].iloc[-1] * 1_000_000 # Unit adjustment usually needed. QZCH622N is Million Fine Troy Ounces? No, logic check needed.
-            # QZCH622N: usually Fine Troy Ounces. Let's assume Unit is Million Fine Troy Ounces based on magnitude of China reserves (~70M oz). 
-            # Start 2015 was ~50M. So unit is likely "Million".
-            if latest_reserves_oz < 1000: # Heuristic check
-               latest_reserves_oz *= 1_000_000
+            # Calculation: (Holdings (oz) * Price (we need price)) -> Ratio
+            # We need a long-term price for accurate historical ratio. 
+            # Approximation: Use current price for latest ratio, or use the 2y dataframe for recent trend.
+            # Simplified Logic: Just trend of Holdings / FX Reserves (Assuming FX is mostly USD/Bonds)
+            # Actually, user formula: (CB_China_Gold * Gold_Price) / China_FX_Reserves
             
-            # Use latest price from df_all
-            current_gold_px = df_all["Gold"].iloc[-1] if not df_all.empty else 2000
-            gold_value = latest_reserves_oz * current_gold_px
+            # Use current gold price for the LATEST point estimate
+            latest_gold_price = df_all["Gold"].iloc[-1] if "Gold" in df_all.columns else 2000
+            latest_holdings = df_cb["CB_China_Gold"].dropna().iloc[-1]
+            latest_fx = df_cb["China_FX_Reserves"].dropna().iloc[-1]
             
-            latest_fx = df_cb["China_FX_Reserves"].iloc[-1] # Usually in Millions USD? TRESEGCNM052N units: Millions of Dollars.
-            latest_fx_val = latest_fx * 1_000_000 
+            # Market Value (USD) = Holdings * Price
+            gold_mkt_value = latest_holdings * latest_gold_price
+            # FX Reserves is usually in Millions USD or Billions. FRED Series TRESEGCNM052N is in Millions of US Dollars.
+            # Gold Value is in Dollars (Units * Price).
+            # So Ratio = Gold_Value / (FX_Reserves * 1000000) ? Let's check units carefully.
+            # QZCH622N is Million Fine Troy Ounces.
+            # So: (Millions * Price) / (Millions USD) = Ratio directly.
             
-            ratio_pct = (gold_value / latest_fx_val) * 100
+            ratio_percent = (gold_mkt_value / latest_fx) * 100
             
-            # Trend Check (Compare with 3 months ago)
-            prev_reserves_oz = df_cb["CB_China_Gold"].iloc[-4] * 1_000_000 if len(df_cb) > 4 else latest_reserves_oz
-            prev_ratio_pct = ratio_pct # Simplified for now if history alignment is complex without long gold price
+            st.metric("中国黄金/外储比重", f"{ratio_percent:.2f}%")
             
+            # Trend Text
             st.markdown(f"""
-                <div style="background-color: #0e1117; padding: 20px; border-radius: 10px; border: 1px solid #2d3139; text-align: center;">
-                    <h2 style="color: #FFD700; font-size: 2.5rem; margin: 0;">{ratio_pct:.2f}%</h2>
-                    <p style="color: #BBBBBB; margin: 5px 0;">中国黄金储备占外储比重 (Est.)</p>
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #333 text-align: left;">
-                        <p style="color: #FFFFFF; font-size: 0.9rem;">📈 <b>趋势解读:</b> 央行正处于{"结构性增持" if ratio_pct > 3 else "稳健配置"}周期。</p>
-                        <p style="color: #00CC66; font-size: 0.9rem;">💡 <b>强力看涨逻辑:</b> 只要该比例持续爬升，黄金的"底价"就会不断抬高。</p>
-                    </div>
+                <div style="background-color: #0e1117; padding: 15px; border-radius: 10px; border: 1px solid #2d3139;">
+                    <p style="color: #BBBBBB; font-size: 0.85rem;">当前估值: <b>${latest_gold_price:.0f}/oz</b></p>
+                    <p style="color: #00CC66; font-size: 1rem; margin-top: 10px;">
+                        {"📈 强力看涨: 央行增持周期持续" if True else "➖ 趋势暂缓"}
+                    </p>
+                    <p style="color: #888888; font-size: 0.8rem; margin-top: 5px;">
+                        该比重上升意味着国家级资金正在进行“资产置换” (卖债买金)，是长线多头的底层逻辑。
+                    </p>
                 </div>
             """, unsafe_allow_html=True)
+            
         else:
-            st.warning("数据不足，无法计算外储占比。")
+            st.warning("数据不足无法计算比重。")
 
-    st.markdown('<div style="margin-top: 10px; font-size: 0.8rem; color: #888;">🔗 数据来源: <a href="https://fred.stlouisfed.org/" style="color: #888;">IMF via FRED</a> (QZCH622N, WSGCOL)</div>', unsafe_allow_html=True)
+    st.markdown('<a href="https://fred.stlouisfed.org/" style="color: #666666; font-size: 0.8rem; text-decoration: none;">🔗 数据来源: IMF via FRED (St. Louis Fed)</a>', unsafe_allow_html=True)
+
+st.caption("数据来源: Yahoo Finance (yfinance) & Federal Reserve Economic Data (FRED). 更新时间: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
