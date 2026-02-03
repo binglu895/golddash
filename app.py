@@ -199,7 +199,12 @@ if not df_fred.empty:
             col3.metric("流动性利差 (SOFR-FF)", "数据不足", "获取中")
             current_spread = 0
     
-    col2.metric("10年期实际利率", f"{real_rate:.2f}%", delta=None) if not pd.isna(real_rate) else col2.metric("10年期实际利率", "数据不足", None)
+        if not pd.isna(real_rate):
+            col2.metric("10年期实际利率", f"{real_rate:.2f}%", delta=None)
+        else:
+            col2.metric("10年期实际利率", "数据不足", None)
+    else:
+        col2.metric("10年期实际利率", "数据不足", "无有效数据")
 
 if "DXY" in df_yf.columns:
     current_dxy = df_yf["DXY"].iloc[-1]
