@@ -268,7 +268,7 @@ fig1.add_trace(
 )
 
 fig1.add_trace(
-    go.Scatter(x=df_all.index, y=df_all["10Y_Real"], name="10Y 实际利率 (DFII10)", line=dict(color="#00CED1", width=2, dash='dot')),
+    go.Scatter(x=df_all.index, y=df_all["10Y_Real_Calculated"], name="10Y 实际利率 (Calculated)", line=dict(color="#00CED1", width=2, dash='dot')),
     secondary_y=True,
 )
 
