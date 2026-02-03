@@ -206,14 +206,16 @@ time_range = st.sidebar.selectbox(
 
 st.sidebar.divider()
 st.sidebar.subheader("🎯 宏观预期 (FedWatch)")
+# Updated default based on Feb 2026 market data (91.1%)
 fedwatch_prob = st.sidebar.slider(
     "3月'不降息'概率 (%)",
     min_value=0,
     max_value=100,
-    value=85,
+    value=91, 
     step=1,
-    help="请参考 CME FedWatch 官网最新概率手动调节"
+    help="最新市场预期(2月)显示概率约为 91.1%"
 )
+st.sidebar.markdown("[🔗 打开 CME FedWatch 官网](https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html)")
 
 # Map time range to yfinance period strings
 period_map = {
