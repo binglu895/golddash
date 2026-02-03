@@ -1,6 +1,5 @@
 streamlit
 yfinance
 pandas
-pandas-datareader
 fredapi
 plotly
