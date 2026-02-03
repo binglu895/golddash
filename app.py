@@ -197,11 +197,22 @@ def get_fred_data(tickers, start_date):
 st.title("💰 黄金市场投研 Dashboard")
 
 # --- Sidebar ---
-st.sidebar.header("控制面板")
+st.sidebar.header("🕹️ 控制面板")
 time_range = st.sidebar.selectbox(
     "回溯时间范围",
     options=["1个月", "3个月", "1年", "2年"],
     index=2
+)
+
+st.sidebar.divider()
+st.sidebar.subheader("🎯 宏观预期 (FedWatch)")
+fedwatch_prob = st.sidebar.slider(
+    "3月'不降息'概率 (%)",
+    min_value=0,
+    max_value=100,
+    value=85,
+    step=1,
+    help="请参考 CME FedWatch 官网最新概率手动调节"
 )
 
 # Map time range to yfinance period strings
@@ -291,6 +302,48 @@ if "DXY" in df_yf.columns:
 
 st.divider()
 
+# --- Macro Sentiment & Advice (SOP) ---
+st.subheader("🔭 宏观情绪与交易建议")
+
+# Calculate metrics for SOP
+if "Fed_Expectations" in df_all.columns:
+    current_spread = df_all["Fed_Expectations"].iloc[-1]
+    prob_val = fedwatch_prob / 100.0
+    
+    # Logic Implementation
+    # Scenario 1: Bearish
+    if fedwatch_prob > 80 and current_spread > -0.15:
+        bg_color = "#ff4b4b22"  # Semi-transparent red
+        border_color = "#ff4b4b"
+        status_text = "🟥 宏观逆风 - 降息预期冰封"
+        advice_text = "市场已接受高利率现实，黄金缺乏向上动能。建议：逢高减仓，等待 10Y 实际利率回落。"
+    # Scenario 2: Divergence
+    elif fedwatch_prob > 80 and current_spread < -0.30:
+        bg_color = "#ffa50022"  # Semi-transparent orange
+        border_color = "#ffa500"
+        status_text = "🟨 背离警报 - 资金抢跑降息"
+        advice_text = "尽管美联储嘴硬，但债券市场在强行定价未来降息。黄金可能出现“利空出尽”的暴力反弹。建议：左侧分批埋伏多单。"
+    # Scenario 3: Bullish
+    elif fedwatch_prob < 50 and current_spread < -0.40:
+        bg_color = "#00cc6622"  # Semi-transparent green
+        border_color = "#00cc66"
+        status_text = "🟩 极度利多 - 降息周期开启"
+        advice_text = "市场达成降息共识。建议：顺势做多，直到实际利率跌破 1.5%。"
+    else:
+        bg_color = "#0f121a"
+        border_color = "#1c1f26"
+        status_text = "⬜ 市场中性 - 震荡整理"
+        advice_text = "宏观信号暂不明确，建议观望或进行区间波段操作。"
+
+    st.markdown(f"""
+        <div style="background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 20px; border-radius: 5px; margin-bottom: 25px;">
+            <h3 style="margin-top:0; color: {border_color}; font-size: 1.2rem;">{status_text}</h3>
+            <p style="margin-bottom:0; font-size: 1.1rem; color: #e0e0e0;"><b>交易建议：</b>{advice_text}</p>
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    st.info("数据加载中，暂无法生成宏观分析...")
+
 # --- Visualizations ---
 
 # 图表1：黄金价格与 10 年期实际利率的叠加对比图（双坐标轴）
@@ -340,7 +393,34 @@ fig2.update_layout(
 
 st.plotly_chart(fig2, use_container_width=True)
 
-# 图表3：美元指数近 30 日走势
+# 图表3：宏观情绪对比图 (不降息概率 vs. 利差)
+fig_macro = make_subplots(specs=[[{"secondary_y": True}]])
+
+# We use current user input for probability representation (historically flat for context if no history)
+# Note: For better visualization, we show the 2Y-FF spread trend and indicate the probability level
+fig_macro.add_trace(
+    go.Scatter(x=df_all.index, y=df_all["Fed_Expectations"], name="2Y-FF 利差 (Spread)", line=dict(color="#00FFAA", width=2)),
+    secondary_y=False,
+)
+
+# Dummy series for Probability to create secondary axis scale
+fig_macro.add_trace(
+    go.Bar(x=[df_all.index[-1]], y=[fedwatch_prob], name="3月不降息概率 (Spot)", marker_color="rgba(255, 75, 75, 0.4)", width=1000000000), 
+    secondary_y=True,
+)
+
+fig_macro.update_layout(
+    title_text="宏观预期共振分析 (Spread vs. FedWatch Prob)",
+    template="plotly_dark",
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
+
+fig_macro.update_yaxes(title_text="2Y-FFSpread (%)", secondary_y=False)
+fig_macro.update_yaxes(title_text="不降息概率 (%)", secondary_y=True, range=[0, 100])
+
+st.plotly_chart(fig_macro, use_container_width=True)
+
+# 图表4：美元指数近 30 日走势
 df_dxy_30 = df_yf["DXY"].tail(30) if not df_yf.empty else pd.DataFrame()
 
 if not df_dxy_30.empty:
