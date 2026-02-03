@@ -81,10 +81,20 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* Sidebar - dark and sleek */
-    [data-testid="stSidebar"] {
+    /* Sidebar - dark and sleek with white text */
+    [data-testid="stSidebar"], 
+    [data-testid="stSidebar"] * {
         background-color: #0f121a;
         border-right: 1px solid #1c1f26;
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown p {
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stSidebar"] label {
+        color: #ffffff !important;
     }
     
     /* Divider - subtle line */
