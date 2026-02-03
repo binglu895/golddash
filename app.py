@@ -159,14 +159,24 @@ FRED_TICKERS = {
 }
 
 # --- Data Fetching Logic ---
-@st.cache_data(ttl=600)  # Cache for 10 minutes
+@st.cache_data(ttl=600, show_spinner=False)  # Cache for 10 minutes, hide default spinner to use custom
 def get_yfinance_data(tickers, period="2y"):
     series_list = []
-    for name, ticker in tickers.items():
+    progress_bar = st.sidebar.progress(0)
+    total_tickers = len(tickers)
+    
+    for i, (name, ticker) in enumerate(tickers.items()):
         try:
+            # Rate limit protection: Sleep 1s between requests
+            time.sleep(1) 
+            
+            # Update sidebar progress
+            progress_bar.progress((i + 1) / total_tickers, text=f"Fetching {name}...")
+
             # We always fetch a larger period ("2y") to ensure availability 
             # for 1mo/3mo slices which are prone to empty returns in some APIs
             df = yf.download(ticker, period="2y", interval="1d", progress=False)
+            
             if not df.empty:
                 # Robust extraction for newer yfinance MultiIndex
                 if isinstance(df.columns, pd.MultiIndex):
@@ -190,6 +200,10 @@ def get_yfinance_data(tickers, period="2y"):
                 st.warning(f"⚠️ {name} ({ticker}) 返回数据为空。")
         except Exception as e:
             st.error(f"Error fetching {name} ({ticker}): {e}")
+            # Fallback message
+            st.warning("Yahoo 数据源繁忙，请 5 分钟后再试或检查网络")
+    
+    progress_bar.empty()
     
     if not series_list:
         return pd.DataFrame()
@@ -237,6 +251,10 @@ st.title("💰 黄金市场投研 Dashboard")
 
 # --- Sidebar ---
 st.sidebar.header("🕹️ 控制面板")
+if st.sidebar.button("🔄 手动刷新数据"):
+    st.cache_data.clear()
+    st.rerun()
+
 time_range = st.sidebar.selectbox(
     "回溯时间范围",
     options=["1个月", "3个月", "1年", "2年"],
