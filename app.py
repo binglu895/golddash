@@ -127,6 +127,10 @@ except KeyError:
     st.warning("⚠️ 未检测到 FRED_API_KEY。请在 Streamlit Secrets 中配置以确保数据抓取稳定。")
     # Fallback for local testing if needed: os.environ["FRED_API_KEY"] = "YOUR_KEY"
 
+# --- Initial Defaults (Safe Fallbacks) ---
+y_period = "1y"
+start_date = datetime.now() - timedelta(days=365)
+
 # --- Constants & Config ---
 YF_TICKERS = {
     "Gold": "GC=F",
