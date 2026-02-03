@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import pandas_datareader.data as web
+from fredapi import Fred
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
@@ -76,18 +76,32 @@ def get_yfinance_data(tickers, period="1y"):
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_fred_data(tickers, start_date):
+    if not FRED_API_KEY or FRED_API_KEY == "YOUR_ACTUAL_FRED_API_KEY_HERE":
+        st.error("FRED_API_KEY 未配置，请在 Streamlit Secrets 中设置。")
+        return pd.DataFrame()
+    
     try:
+        fred = Fred(api_key=FRED_API_KEY)
+        data_dict = {}
         # Increase lookback window slightly to ensure we get data
         buffer_start = start_date - timedelta(days=7)
-        df = web.DataReader(list(tickers.values()), "fred", buffer_start)
-        # Rename columns to human-readable names
-        inv_map = {v: k for k, v in tickers.items()}
-        df = df.rename(columns=inv_map)
+        
+        for name, ticker in tickers.items():
+            try:
+                series = fred.get_series(ticker, observation_start=buffer_start)
+                data_dict[name] = series
+            except Exception as e:
+                st.error(f"无法获取 {name} ({ticker}): {e}")
+        
+        if not data_dict:
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(data_dict)
         # Sort and ffill to handle different release schedules
         df = df.sort_index().ffill()
         return df[df.index >= pd.to_datetime(start_date)]
     except Exception as e:
-        st.error(f"Error fetching FRED data: {e}")
+        st.error(f"Error initializing FRED API: {e}")
         return pd.DataFrame()
 
 # --- Main Application ---
