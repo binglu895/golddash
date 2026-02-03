@@ -152,7 +152,8 @@ FRED_TICKERS = {
     "FedFunds": "FEDFUNDS",
     "SOFR": "SOFR",
     "Interest_to_GDP": "A091RC1Q027SBEA", # Interest payments on federal debt
-    "Federal_Debt_GDP": "GFDEGDQ188S"      # Federal Debt as % of GDP
+    "Federal_Debt_GDP": "GFDEGDQ188S",     # Federal Debt as % of GDP
+    "CFTC_Net": "COMGOLDNET"               # CFTC Gold Non-Commercial Net Positions
 }
 
 # --- Data Fetching Logic ---
@@ -372,6 +373,15 @@ if "Fed_Expectations" in df_all.columns:
     gvz_val = df_all["GVZ"].iloc[-1] if "GVZ" in df_all.columns else 0
     gold_is_up = gold_pct_change > 0 if 'gold_pct_change' in locals() else False
     gold_is_high = df_all["Gold"].iloc[-1] > df_all["Gold"].rolling(20).mean().iloc[-1] if len(df_all) > 20 else False
+    
+    # Capital Flow Weighting
+    cftc_val = df_all["CFTC_Net"].iloc[-1] if "CFTC_Net" in df_all.columns else 0
+    gld_flow_neg = False
+    if "Gold" in df_all.columns and "GLD" in df_all.columns and len(df_all) > 5:
+        recent_price_up = df_all["Gold"].iloc[-1] > df_all["Gold"].iloc[-5]
+        recent_gld_down = df_all["GLD"].iloc[-1] < df_all["GLD"].iloc[-5]
+        if recent_price_up and recent_gld_down:
+            gld_flow_neg = True
 
     # Scenario 1: Bearish
     if fedwatch_prob > 80 and current_spread > -0.15:
@@ -397,21 +407,32 @@ if "Fed_Expectations" in df_all.columns:
         status_text = "⬜ 市场中性 - 震荡整理"
         advice_text = "宏观信号暂不明确，建议观望或进行区间波段操作。"
 
-    # Override for Sentiment Scenarios
+    # --- Overrides for Sentiment & Capital Flows ---
+    extra_alerts = []
     if vix_val > 25 and gold_is_up:
         status_text = "🔥 避险共振强度极高"
-        advice_text = "美股恐慌触发黄金避险买盘，建议持有，关注 VIX 25 水位支撑。"
+        advice_text = "美股恐慌触发黄金避险买盘，建议持有。"
     elif gvz_val > 25 and gold_is_high:
         status_text = "⚠️ 警惕狂热多头踩踏"
-        advice_text = "黄金自身波动率 (GVZ) 过高且处于相对高位，谨防获利盘踩踏。建议：收紧止损。"
+        advice_text = "黄金自身波动率 (GVZ) 过高，谨防虚假繁荣后的暴力回调。"
+        
+    if gld_flow_neg:
+        extra_alerts.append("⚠ 筹码背离：金价上涨但主力 ETF 在获利了结，谨防假突破。")
+    if cftc_val > 200000:
+        extra_alerts.append("🔴 筹码拥挤：投机多头接近历史极值，想买的人已入场，警惕踩踏。")
+
+    alert_html = "".join([f'<div style="color: #FFD700; font-size: 0.95rem; margin-top: 8px; font-weight: 600;">{a}</div>' for a in extra_alerts])
 
     st.markdown(f"""
     <div style="background-color: {box_bg}; border-left: 5px solid {box_border}; padding: 20px; border-radius: 10px; border: 1px solid {box_bg.replace('0.15', '0.3')}; margin-bottom: 25px;">
         <h3 style="margin-top: 0px; color: {box_border}; font-size: 1.3rem;">{status_text}</h3>
-        <p style="margin-bottom: 10px; font-size: 1.1rem; color: #FFFFFF; line-height: 1.6; font-weight: 500;">
+        <p style="margin-bottom: 5px; font-size: 1.1rem; color: #FFFFFF; line-height: 1.6; font-weight: 500;">
             <b>交易建议：</b>{advice_text}
         </p>
-        <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" style="color: #BBBBBB; font-size: 0.8rem; text-decoration: none;">🔗 数据来源：CME FedWatch Tool (基于 ZQ=F 期货自动估算: {fedwatch_prob}%)</a>
+        {alert_html}
+        <div style="margin-top: 15px;">
+            <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" style="color: #BBBBBB; font-size: 0.8rem; text-decoration: none;">🔗 核心来源：CME FedWatch & CFTC Net Position ({fedwatch_prob}%)</a>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 else:
@@ -560,6 +581,72 @@ with st.container():
             st.caption("注：VIX > 25 常伴随避险买盘，GVZ > 25 需警惕黄金短期过热。")
         else:
             st.warning("VIX 或 GVZ 数据缺失，无法生成情绪温度计。")
+
+st.divider()
+
+# --- Capital Flows & Positions Zone ---
+with st.container():
+    st.markdown("""
+        <div style="background-color: #1c1f26; padding: 25px; border-radius: 15px; border: 1px solid #2d3139; margin-bottom: 30px;">
+            <h2 style="color: #FFD700; margin-top: 0;">📦 资金流向与筹码分布</h2>
+            <p style="color: #FFFFFF !important; font-size: 0.95rem; opacity: 1 !important;">
+                追踪大额资金动向：CFTC 投机头寸 (Smart Money) 与 GLD 持仓变化 (Institutional Flow)
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    f_col1, f_col2 = st.columns(2)
+    
+    with f_col1:
+        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">📊 CFTC 投机净持仓 (Committed Non-Comm)</p>', unsafe_allow_html=True)
+        if "CFTC_Net" in df_all.columns:
+            # Shift data for visual overlap fix if needed, but primary is Gold
+            fig_cftc = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Gold Price
+            fig_cftc.add_trace(
+                go.Scatter(x=df_all.index, y=df_all["Gold"], name="金价 (Gold)", line=dict(color="#FFD700", width=2)),
+                secondary_y=False,
+            )
+            # CFTC Position (Bar or Line)
+            fig_cftc.add_trace(
+                go.Scatter(x=df_all.index, y=df_all["CFTC_Net"], name="CFTC 净多头", fill='tozeroy', line=dict(color="#00CCFF", width=1.5)),
+                secondary_y=True,
+            )
+            
+            # Crowded Trade Overlay (Rectangle if > 200k)
+            latest_cftc = df_all["CFTC_Net"].dropna().iloc[-1]
+            if latest_cftc > 200000:
+                fig_cftc.add_hrect(y0=200000, y1=max(df_all["CFTC_Net"].max(), 250000), 
+                                  fillcolor="rgba(255, 0, 0, 0.1)", borderwidth=0, 
+                                  annotation_text="拥挤交易区", annotation_position="top left",
+                                  secondary_y=True)
+
+            fig_cftc.update_layout(height=400, template="plotly_dark", margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", y=1.1))
+            fig_cftc.update_yaxes(title_text="Gold Price", secondary_y=False)
+            fig_cftc.update_yaxes(title_text="Positions (Contracts)", secondary_y=True)
+            st.plotly_chart(fig_cftc, use_container_width=True)
+            st.caption("注：净持仓 > 20 万手通常意味着市场过热，谨防多头反向自杀式平仓。")
+        else:
+            st.warning("CFTC 数据抓取中或暂无更新 (每周五更新)...")
+
+    with f_col2:
+        st.markdown('<p style="color: #ffffff !important; font-weight: bold;">📉 GLD 持仓背离分析</p>', unsafe_allow_html=True)
+        if "GLD" in df_all.columns:
+            fig_gld = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_gld.add_trace(
+                go.Scatter(x=df_all.index, y=df_all["Gold"], name="金价 (Gold)", line=dict(color="#FFD700", width=2)),
+                secondary_y=False,
+            )
+            fig_gld.add_trace(
+                go.Scatter(x=df_all.index, y=df_all["GLD"], name="GLD 持仓 (规模)", line=dict(color="#FFFFFF", width=2, dash='dash')),
+                secondary_y=True,
+            )
+            fig_gld.update_layout(height=400, template="plotly_dark", margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", y=1.1))
+            st.plotly_chart(fig_gld, use_container_width=True)
+            st.caption("提示：若金价涨但 GLD 规模降，说明大资金在“且涨且退”，警惕顶部回撤。")
+        else:
+            st.warning("GLD 数据缺失。")
 
 # --- Footer ---
 st.caption("数据来源: Yahoo Finance (yfinance) & Federal Reserve Economic Data (FRED). 更新时间: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
