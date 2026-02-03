@@ -16,24 +16,51 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom Styling ---
 st.markdown("""
 <style>
+    /* Minimalist Dark Theme */
     .main {
-        background-color: #0e1117;
+        background-color: #0b0e14;
+        color: #e0e0e0;
     }
-    .stMetric {
-        background-color: #1e2130;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #3e4451;
+    
+    /* KPI Cards - no borders, subtle shadows, clean font */
+    [data-testid="stMetric"] {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0px !important;
     }
+    
+    [data-testid="stMetricValue"] {
+        font-size: 2.2rem !important;
+        font-weight: 300 !important;
+        color: #ffffff;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        font-size: 0.9rem !important;
+        font-weight: 400 !important;
+        color: #888888;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
+
+    /* Sidebar - dark and sleek */
     [data-testid="stSidebar"] {
-        background-color: #1e2130;
+        background-color: #0f121a;
+        border-right: 1px solid #1c1f26;
     }
-    .stAlert {
-        padding: 10px;
-        border-radius: 5px;
+    
+    /* Divider - subtle line */
+    hr {
+        margin: 2em 0;
+        border: 0;
+        border-top: 1px solid #1c1f26;
+    }
+
+    /* Plotly charts backgrounds */
+    .js-plotly-plot .plotly .main-svg {
+        background: transparent !important;
     }
 </style>
 """, unsafe_allow_html=True)
