@@ -53,24 +53,28 @@ st.markdown("""
         border-radius: 12px !important;
         padding: 20px !important;
         margin-top: 5px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        border: 1px solid #e0e0e0 !important;
     }
     
-    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"],
-    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"],
-    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"],
+    /* Targeting the specific markdown container nested inside the metric */
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] div[data-testid="stMarkdownContainer"] p,
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] div[data-testid="stMarkdownContainer"] p,
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] div[data-testid="stMarkdownContainer"] p,
     [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] *,
     [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] *,
     [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] * {
         color: #000000 !important;
-        font-weight: 600 !important;
+        -webkit-text-fill-color: #000000 !important;
+        font-weight: 700 !important;
         opacity: 1 !important;
     }
 
     [data-testid="column"]:nth-of-type(2) [data-testid="stMetricLabel"],
     [data-testid="column"]:nth-of-type(3) [data-testid="stMetricLabel"],
     [data-testid="column"]:nth-of-type(4) [data-testid="stMetricLabel"] {
-        color: #666666 !important;
+        color: #333333 !important;
+        font-weight: 500 !important;
     }
 
     /* Sidebar - dark and sleek */
