@@ -49,23 +49,28 @@ st.markdown("""
     [data-testid="column"]:nth-of-type(2),
     [data-testid="column"]:nth-of-type(3),
     [data-testid="column"]:nth-of-type(4) {
-        background-color: #f8f9fb !important;
-        border-radius: 8px !important;
-        padding: 15px !important;
+        background-color: #ffffff !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
         margin-top: 5px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
     }
     
     [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"],
     [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"],
-    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] {
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"],
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] *,
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] *,
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] * {
         color: #000000 !important;
-        font-weight: 400 !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
     }
 
     [data-testid="column"]:nth-of-type(2) [data-testid="stMetricLabel"],
     [data-testid="column"]:nth-of-type(3) [data-testid="stMetricLabel"],
     [data-testid="column"]:nth-of-type(4) [data-testid="stMetricLabel"] {
-        color: #555555 !important;
+        color: #666666 !important;
     }
 
     /* Sidebar - dark and sleek */
