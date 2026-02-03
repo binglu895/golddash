@@ -148,7 +148,8 @@ FRED_TICKERS = {
     "10Y_Breakeven_FRED": "T10YIE",  # Primary source for Breakeven
     "2Y_Nominal": "DGS2",
     "FedFunds": "FEDFUNDS",
-    "SOFR": "SOFR"
+    "SOFR": "SOFR",
+    "FEDTARMD": "FEDTARMD"          # FOMC Dot Plot Median Projection
 }
 
 # --- Data Fetching Logic ---
@@ -345,6 +346,16 @@ st.subheader("🔭 宏观情绪与交易建议")
 if "Fed_Expectations" in df_all.columns:
     current_spread = df_all["Fed_Expectations"].iloc[-1]
     
+    # Dot Plot Divergence Check
+    dot_warning = ""
+    if "FEDTARMD" in df_all.columns and "2Y_Nominal" in df_all.columns:
+        latest_dot = df_all["FEDTARMD"].dropna().iloc[-1] if not df_all["FEDTARMD"].dropna().empty else None
+        latest_2y = df_all["2Y_Nominal"].iloc[-1]
+        
+        # If market 2Y is significantly below official projection mediator
+        if latest_dot and latest_2y < (latest_dot - 0.25):
+             dot_warning = '<div style="background-color: #ffcc0022; color: #ffcc00; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #ffcc0044; font-size: 0.9rem;"><b>⚠ 市场预期与官方点阵图发生背离，警惕鹰派修正</b></div>'
+
     # Logic Implementation
     # Scenario 1: Bearish
     if fedwatch_prob > 80 and current_spread > -0.15:
@@ -376,7 +387,10 @@ if "Fed_Expectations" in df_all.columns:
         <p style="margin-bottom: 10px; font-size: 1.1rem; color: #FFFFFF; line-height: 1.6; font-weight: 500;">
             <b>交易建议：</b>{advice_text}
         </p>
-        <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" style="color: #BBBBBB; font-size: 0.8rem; text-decoration: none;">🔗 数据来源：CME FedWatch Tool (基于 ZQ=F 期货自动估算: {fedwatch_prob}%)</a>
+        {dot_warning}
+        <div style="margin-top: 15px;">
+            <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" style="color: #BBBBBB; font-size: 0.8rem; text-decoration: none;">🔗 数据来源：CME FedWatch Tool (基于 ZQ=F 期货自动估算: {fedwatch_prob}%)</a>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 else:
@@ -440,6 +454,14 @@ fig_macro.add_trace(
     go.Scatter(x=df_all.index, y=df_all["Fed_Expectations"], name="2Y-FF 利差 (Spread)", line=dict(color="#00FFAA", width=2)),
     secondary_y=False,
 )
+
+if "FEDTARMD" in df_all.columns:
+    # Scale dot plot to spread terms for comparison or just show as absolute anchor
+    # User specifically asked for "官方点阵图锚点"
+    fig_macro.add_trace(
+        go.Scatter(x=df_all.index, y=df_all["FEDTARMD"], name="官方点阵图锚点", line=dict(color="#FFD700", width=2, dash='dash')),
+        secondary_y=False,
+    )
 
 # Dummy series for Probability to create secondary axis scale
 fig_macro.add_trace(
