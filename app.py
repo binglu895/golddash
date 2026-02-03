@@ -34,7 +34,6 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 2.2rem !important;
         font-weight: 300 !important;
-        color: #ffffff;
     }
     
     [data-testid="stMetricLabel"] {
@@ -57,17 +56,15 @@ st.markdown("""
         border: 1px solid #e0e0e0 !important;
     }
     
-    /* Targeting the specific markdown container nested inside the metric */
-    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] div[data-testid="stMarkdownContainer"] p,
-    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] div[data-testid="stMarkdownContainer"] p,
-    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] div[data-testid="stMarkdownContainer"] p,
-    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] *,
-    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] *,
-    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] * {
+    /* Target ALL children of metric value in these columns to be black */
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] div,
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] div,
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] div,
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] p,
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] p,
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] p {
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
-        font-weight: 700 !important;
-        opacity: 1 !important;
     }
 
     [data-testid="column"]:nth-of-type(2) [data-testid="stMetricLabel"],
@@ -75,6 +72,13 @@ st.markdown("""
     [data-testid="column"]:nth-of-type(4) [data-testid="stMetricLabel"] {
         color: #333333 !important;
         font-weight: 500 !important;
+    }
+
+    /* Set other metrics back to white/light for the dark theme */
+    [data-testid="column"]:nth-of-type(1) [data-testid="stMetricValue"] *,
+    [data-testid="column"]:nth-of-type(5) [data-testid="stMetricValue"] *,
+    [data-testid="column"]:nth-of-type(6) [data-testid="stMetricValue"] * {
+        color: #ffffff !important;
     }
 
     /* Sidebar - dark and sleek */
