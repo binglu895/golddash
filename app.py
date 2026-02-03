@@ -45,6 +45,29 @@ st.markdown("""
         letter-spacing: 0.1em;
     }
 
+    /* Interest Rate Group Highlight - Light Cards for Black Text */
+    [data-testid="column"]:nth-of-type(2),
+    [data-testid="column"]:nth-of-type(3),
+    [data-testid="column"]:nth-of-type(4) {
+        background-color: #f8f9fb !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+        margin-top: 5px !important;
+    }
+    
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"],
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"],
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] {
+        color: #000000 !important;
+        font-weight: 400 !important;
+    }
+
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricLabel"],
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricLabel"],
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricLabel"] {
+        color: #555555 !important;
+    }
+
     /* Sidebar - dark and sleek */
     [data-testid="stSidebar"] {
         background-color: #0f121a;
