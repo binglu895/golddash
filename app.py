@@ -1,3 +1,7 @@
+import streamlit as st
+import pandas as pd
+import yfinance as yf
+import pandas_datareader.data as web
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
