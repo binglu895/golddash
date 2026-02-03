@@ -78,7 +78,7 @@ except KeyError:
 YF_TICKERS = {
     "Gold": "GC=F",
     "DXY": "DX-Y.NYB",
-    "10Y_Nominal": "^TNX",
+    "10Y_TNX": "^TNX",  # Renamed to avoid collision
     "GLD": "GLD"
 }
 
