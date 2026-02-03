@@ -119,7 +119,9 @@ def get_yfinance_data(tickers, period="1y"):
         return pd.DataFrame()
         
     # Using pd.concat is much more robust than pd.DataFrame(dict)
-    return pd.concat(series_list, axis=1)
+    df = pd.concat(series_list, axis=1)
+    # Deduplicate index (keep last) to prevent reindexing errors
+    return df.loc[~df.index.duplicated(keep='last')]
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_fred_data(tickers, start_date):
@@ -146,6 +148,8 @@ def get_fred_data(tickers, start_date):
             return pd.DataFrame()
             
         df = pd.concat(series_list, axis=1)
+        # Deduplicate index (keep last)
+        df = df.loc[~df.index.duplicated(keep='last')]
         # Sort and ffill to handle different release schedules
         df = df.sort_index().ffill()
         return df[df.index >= pd.to_datetime(start_date)]
@@ -194,7 +198,10 @@ with st.spinner("正在抓取实时数据..."):
 
 # --- Core Logic & Calculations ---
 # Merge all data
-df_all = pd.concat([df_yf, df_fred], axis=1).ffill().dropna()
+df_all = pd.concat([df_yf, df_fred], axis=1)
+
+# Final deduplication and cleaning to ensure absolute label uniqueness
+df_all = df_all.loc[~df_all.index.duplicated(keep='last')].ffill().dropna()
 
 # Calculate 10Y Real Rate: Nominal - Breakeven
 if "10Y_Nominal" in df_all.columns and "10Y_Breakeven" in df_all.columns:
