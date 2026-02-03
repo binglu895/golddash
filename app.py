@@ -132,7 +132,8 @@ YF_TICKERS = {
     "Gold": "GC=F",
     "DXY": "DX-Y.NYB",
     "10Y_Nominal_YF": "^TNX",  # Primary source for Nominal
-    "GLD": "GLD"
+    "GLD": "GLD",
+    "FFF": "ZQ=F"               # 30-Day Fed Funds Futures
 }
 
 FRED_TICKERS = {
@@ -213,6 +214,35 @@ def get_fred_data(tickers, start_date):
 
 st.title("💰 黄金市场投研 Dashboard")
 
+# --- Data Loading ---
+with st.spinner("正在抓取实时数据..."):
+    df_yf = get_yfinance_data(YF_TICKERS, period=y_period)
+    df_fred = get_fred_data(FRED_TICKERS, start_date)
+
+# --- Automated FedWatch Estimate ---
+# Default if calculation fails
+auto_prob = 91
+
+if not df_yf.empty and "FFF" in df_yf.columns and not df_fred.empty and "FedFunds" in df_fred.columns:
+    try:
+        latest_fff = df_yf["FFF"].iloc[-1]
+        implied_rate = 100 - latest_fff
+        current_ff = df_fred["FedFunds"].iloc[-1]
+        
+        # Simple sensitivity mapping: 
+        # If implied rate is at/above current, prob is high. 
+        # If implied rate is 25bps (0.25) below, prob is low.
+        diff = current_ff - implied_rate
+        if diff <= 0:
+            auto_prob = 95
+        elif diff >= 0.25:
+            auto_prob = 10
+        else:
+            # Linear interpolation between 95% and 10%
+            auto_prob = int(95 - (diff / 0.25) * 85)
+    except:
+        pass
+
 # --- Sidebar ---
 st.sidebar.header("🕹️ 控制面板")
 time_range = st.sidebar.selectbox(
@@ -223,43 +253,15 @@ time_range = st.sidebar.selectbox(
 
 st.sidebar.divider()
 st.sidebar.subheader("🎯 宏观预期 (FedWatch)")
-# Updated default based on Feb 2026 market data (91.1%)
 fedwatch_prob = st.sidebar.slider(
     "3月'不降息'概率 (%)",
     min_value=0,
     max_value=100,
-    value=91, 
+    value=auto_prob, 
     step=1,
-    help="最新市场预期(2月)显示概率约为 91.1%"
+    help=f"算法根据 ZQ=F 期货自动估算为 {auto_prob}%"
 )
 st.sidebar.markdown("[🔗 打开 CME FedWatch 官网](https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html)")
-
-# Map time range to yfinance period strings
-period_map = {
-    "1个月": "1mo",
-    "3个月": "3mo",
-    "1年": "1y",
-    "2年": "2y"
-}
-y_period = period_map[time_range]
-
-# Calculate start date for FRED
-end_date = datetime.today()
-if time_range == "1个月":
-    start_date = end_date - timedelta(days=30)
-elif time_range == "3个月":
-    start_date = end_date - timedelta(days=90)
-elif time_range == "1年":
-    start_date = end_date - timedelta(days=365)
-else:
-    start_date = end_date - timedelta(days=730)
-
-# --- Data Loading ---
-with st.spinner("正在抓取实时数据..."):
-    df_yf = get_yfinance_data(YF_TICKERS, period=y_period)
-    df_fred = get_fred_data(FRED_TICKERS, start_date)
-
-    # Note: df_yf and df_fred are already clean from the helper functions
 
 # --- Core Logic & Calculations ---
 # Merge all data
