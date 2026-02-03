@@ -200,8 +200,11 @@ with st.spinner("正在抓取实时数据..."):
 # Merge all data
 df_all = pd.concat([df_yf, df_fred], axis=1)
 
-# Final deduplication and cleaning to ensure absolute label uniqueness
-df_all = df_all.loc[~df_all.index.duplicated(keep='last')].ffill().dropna()
+# Final deduplication
+df_all = df_all.loc[~df_all.index.duplicated(keep='last')].ffill()
+
+# Drop rows where we don't have basic Price data, but keep those with partial rate data
+df_all = df_all.dropna(subset=["Gold"])
 
 # Calculate 10Y Real Rate: Nominal - Breakeven
 if "10Y_Nominal" in df_all.columns and "10Y_Breakeven" in df_all.columns:
@@ -222,7 +225,7 @@ else:
     df_all["Liquidity_Spread"] = 0
 
 # --- KPI Cards ---
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 if not df_yf.empty:
     current_gold = df_yf["Gold"].iloc[-1]
@@ -230,30 +233,26 @@ if not df_yf.empty:
     gold_pct_change = ((current_gold - prev_gold) / prev_gold) * 100
     col1.metric("金价 (USD)", f"${current_gold:.2f}", f"{gold_pct_change:+.2f}%")
 
-if not df_all.empty and "10Y_Real_Calculated" in df_all.columns:
+if "10Y_Nominal" in df_all.columns:
+    col2.metric("10Y 名义收益率", f"{df_all['10Y_Nominal'].iloc[-1]:.2f}%")
+
+if "10Y_Breakeven" in df_all.columns:
+    col3.metric("10Y 盈亏平衡(通胀)", f"{df_all['10Y_Breakeven'].iloc[-1]:.2f}%")
+
+if "10Y_Real_Calculated" in df_all.columns:
     real_rate = df_all["10Y_Real_Calculated"].iloc[-1]
-    col2.metric("10Y 实际利率", f"{real_rate:.2f}%")
-else:
-    col2.metric("10Y 实际利率", "数据不足")
+    col4.metric("10Y 实际利率", f"{real_rate:.2f}%")
 
-if not df_all.empty and "Fed_Expectations" in df_all.columns:
+if "Fed_Expectations" in df_all.columns:
     fed_exp = df_all["Fed_Expectations"].iloc[-1]
-    # Negative spread typically indicates rate cut expectations
     exp_status = "降息预期强" if fed_exp < -0.2 else "中性"
-    col3.metric("降息预期 (2Y-FF)", f"{fed_exp:.2f}%", exp_status)
-else:
-    col3.metric("降息预期", "数据不足")
-
-if not df_all.empty and "Liquidity_Spread" in df_all.columns:
-    current_spread = df_all["Liquidity_Spread"].iloc[-1]
-    status_label = "正常" if abs(current_spread) < 0.1 else "流动性紧张"
-    col4.metric("流动便利性 (SOFR-FF)", f"{current_spread:.3f}%", status_label, delta_color="inverse" if abs(current_spread) >= 0.1 else "normal")
+    col5.metric("降息预期 (2Y-FF)", f"{fed_exp:.2f}%", exp_status)
 
 if "DXY" in df_yf.columns:
     current_dxy = df_yf["DXY"].iloc[-1]
     prev_dxy = df_yf["DXY"].iloc[-2]
     dxy_pct = ((current_dxy - prev_dxy) / prev_dxy) * 100
-    col5.metric("美元指数", f"{current_dxy:.2f}", f"{dxy_pct:+.2f}%")
+    col6.metric("美元指数", f"{current_dxy:.2f}", f"{dxy_pct:+.2f}%")
 
 st.divider()
 
