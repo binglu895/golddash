@@ -64,15 +64,33 @@ FRED_TICKERS = {
 # --- Data Fetching Logic ---
 @st.cache_data(ttl=600)  # Cache for 10 minutes
 def get_yfinance_data(tickers, period="1y"):
-    data = {}
+    series_list = []
     for name, ticker in tickers.items():
         try:
             df = yf.download(ticker, period=period, interval="1d", progress=False)
             if not df.empty:
-                data[name] = df['Close']
+                # Handle potential MultiIndex columns (yfinance sometimes returns them)
+                if isinstance(df.columns, pd.MultiIndex):
+                    # Usually the first level is 'Close' or similar, we want that
+                    # But often it's multi-ticker multi-level. We just need the actual data column.
+                    # Simplest way: just take the 'Close' column if it exists across levels
+                    content = df['Close']
+                    if isinstance(content, pd.DataFrame):
+                        # If multiple tickers in one download (not our case but safer)
+                        content = content.iloc[:, 0]
+                else:
+                    content = df['Close']
+                
+                content.name = name
+                series_list.append(content)
         except Exception as e:
             st.error(f"Error fetching {name} ({ticker}): {e}")
-    return pd.DataFrame(data)
+    
+    if not series_list:
+        return pd.DataFrame()
+        
+    # Using pd.concat is much more robust than pd.DataFrame(dict)
+    return pd.concat(series_list, axis=1)
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_fred_data(tickers, start_date):
@@ -82,21 +100,23 @@ def get_fred_data(tickers, start_date):
     
     try:
         fred = Fred(api_key=FRED_API_KEY)
-        data_dict = {}
+        series_list = []
         # Increase lookback window slightly to ensure we get data
         buffer_start = start_date - timedelta(days=7)
         
         for name, ticker in tickers.items():
             try:
                 series = fred.get_series(ticker, observation_start=buffer_start)
-                data_dict[name] = series
+                if not series.empty:
+                    series.name = name
+                    series_list.append(series)
             except Exception as e:
                 st.error(f"无法获取 {name} ({ticker}): {e}")
         
-        if not data_dict:
+        if not series_list:
             return pd.DataFrame()
             
-        df = pd.DataFrame(data_dict)
+        df = pd.concat(series_list, axis=1)
         # Sort and ffill to handle different release schedules
         df = df.sort_index().ffill()
         return df[df.index >= pd.to_datetime(start_date)]
@@ -141,9 +161,7 @@ with st.spinner("正在抓取实时数据..."):
     df_yf = get_yfinance_data(YF_TICKERS, period=y_period)
     df_fred = get_fred_data(FRED_TICKERS, start_date)
 
-    # Clean multi-index columns if yfinance returns them
-    if isinstance(df_yf.columns, pd.MultiIndex):
-        df_yf.columns = df_yf.columns.get_level_values(0)
+    # Note: df_yf and df_fred are already clean from the helper functions
 
 # --- Core Logic & Calculations ---
 # Merge all data
