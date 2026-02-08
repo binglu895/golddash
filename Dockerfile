@@ -23,4 +23,4 @@ EXPOSE 8080
 # 启动命令
 # --server.port=8080 : 改用 8080 端口，配合 Zeabur 默认探测
 # --browser.gatherUsageStats=false : 生产环境关闭统计，减少日志噪音
-CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--browser.gatherUsageStats=false"]
+CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--browser.gatherUsageStats=false"]
