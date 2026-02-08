@@ -196,7 +196,7 @@ if "Gold" in df.columns and "10Y_TIPS" in df.columns:
     fig_macro.add_trace(go.Scatter(x=df.index, y=df["Gold"], name="Gold", line=dict(color="#FFD700")), secondary_y=False)
     fig_macro.add_trace(go.Scatter(x=df.index, y=df["10Y_TIPS"], name="Real Yield (Inv)", line=dict(color="#00FFFF")), secondary_y=True)
     fig_macro.update_yaxes(title_text="Gold", secondary_y=False)
-    fig_macro.update_yaxes(title_text="Real Yield (%)", reversed=True, secondary_y=True)
+    fig_macro.update_yaxes(title_text="Real Yield (%)", autorange="reversed", secondary_y=True)
     fig_macro.update_layout(title="Gold vs Real Rates (Correlation Check)", height=350, margin=dict(l=0,r=0,t=30,b=0), template="plotly_dark")
     st.plotly_chart(fig_macro, use_container_width=True)
 
