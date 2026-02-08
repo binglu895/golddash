@@ -10,6 +10,7 @@ import sys
 
 # Ensure utils can be imported
 sys.path.append(os.getcwd())
+# from utils.db import SupabaseHandler # Dynamic import later to handle missing deps
 
 # --- Configuration ---
 st.set_page_config(layout="wide", page_title="Gold Professional Dashboard", page_icon="🏦")
@@ -50,11 +51,8 @@ st.markdown("""
 try:
     FRED_API_KEY = st.secrets["FRED_API_KEY"]
 except:
-    # Use environment variable if secrets not available (dev)
-    FRED_API_KEY = os.environ.get("FRED_API_KEY")
-    if not FRED_API_KEY:
-        st.error("Missing FRED_API_KEY in secrets or env.")
-        st.stop()
+    st.error("Missing FRED_API_KEY")
+    st.stop()
 
 # --- Data Constants ---
 YF_TICKERS = {
@@ -72,10 +70,7 @@ FRED_TICKERS = {
     "10Y_Breakeven": "T10YIE",
     "Debt_to_GDP": "GFDEGDQ188S",
     "FedFunds": "FEDFUNDS", 
-    "Interest_Expense": "A091RC1Q027SBEA", # Interest payments
-    "CB_China_Gold": "QZCH622N",
-    "CB_US_Gold": "WSGCOL",
-    "China_FX_Reserves": "TRESEGCNM052N"
+    "Interest_Expense": "A091RC1Q027SBEA" # Interest payments
 }
 
 # --- Supabase Setup ---
@@ -100,26 +95,22 @@ def get_combined_data(days=730):
     # 1. Fetch YFinance
     yf_data = {}
     for name, ticker in YF_TICKERS.items():
+        # Try DB first (Not implemented fully for YF as getting bulk is easier via API for now, 
+        # but for production we'd fetch DB then API for missing)
+        # For simplicity in this refactor, we fetch API then save to DB
         try:
             df = yf.download(ticker, start=start_date, progress=False)
             if not df.empty:
                 # Handle MultiIndex if present
                 if isinstance(df.columns, pd.MultiIndex):
-                    if 'Close' in df.columns.get_level_values(0):
-                         s = df['Close']
-                    else:
-                         s = df.iloc[:, 0]
+                    df = df['Close']
                 elif 'Close' in df.columns:
-                    s = df['Close']
+                    df = df[['Close']]
                 else:
-                    s = df.iloc[:, 0]
+                    df = df.iloc[:, 0].to_frame()
                 
-                # If s is DataFrame provided by yfinance (sometimes happens with single ticker), get series
-                if isinstance(s, pd.DataFrame):
-                    s = s.iloc[:, 0]
-                    
-                s.name = name
-                yf_data[name] = s
+                df.columns = ['Close']
+                yf_data[name] = df['Close']
                 
                 # Async save or just save (might slow down first run)
                 # db.save_data(df, name, "yahoo") 
@@ -154,12 +145,12 @@ with st.spinner("Aggregating Multi-Source Data..."):
     df = get_combined_data()
 
 if df.empty:
-    st.error("No data available. Check API keys and network.")
+    st.error("No data available.")
     st.stop()
 
 # Get latest valid data
 latest = df.iloc[-1]
-prev = df.iloc[-2] if len(df) > 1 else latest
+prev = df.iloc[-2]
 
 # --- Layer 1: Macro Drive (The "Why") ---
 st.markdown("### 1. Macro Drive (Direction)")
@@ -170,7 +161,8 @@ col1, col2, col3 = st.columns(3)
 # 1.1 Real Rates Logic
 real_rate = latest.get("10Y_TIPS", 0)
 gold_price = latest.get("Gold", 0)
-# Simple logic: If Real Rate > 2%, Gold usually pressured. If < 1%, Gold supported.
+fair_value_model = 3000 - (real_rate * 200) # Dummy model: Rate up 1% -> Gold down 200
+mispricing = gold_price - fair_value_model
 
 with col1:
     st.metric("10Y Real Rate (TIPS)", f"{real_rate:.2f}%", f"{real_rate - prev.get('10Y_TIPS', 0):.2f}%", delta_color="inverse")
@@ -181,24 +173,14 @@ with col1:
     else:
         st.warning("⚪ Neutral")
 
-with col2:
-    debt_gdp = latest.get("Debt_to_GDP", 0)
-    st.metric("Debt/GDP Ratio", f"{debt_gdp:.1f}%")
-
-with col3:
-    vix = latest.get("VIX", 0)
-    st.metric("VIX (Fear Index)", f"{vix:.1f}", f"{vix - prev.get('VIX', 0):.1f}")
-
-
 # 1.2 Chart: Gold vs Real Rates (Inverted)
-if "Gold" in df.columns and "10Y_TIPS" in df.columns:
-    fig_macro = make_subplots(specs=[[{"secondary_y": True}]])
-    fig_macro.add_trace(go.Scatter(x=df.index, y=df["Gold"], name="Gold", line=dict(color="#FFD700")), secondary_y=False)
-    fig_macro.add_trace(go.Scatter(x=df.index, y=df["10Y_TIPS"], name="Real Yield (Inv)", line=dict(color="#00FFFF")), secondary_y=True)
-    fig_macro.update_yaxes(title_text="Gold", secondary_y=False)
-    fig_macro.update_yaxes(title_text="Real Yield (%)", reversed=True, secondary_y=True)
-    fig_macro.update_layout(title="Gold vs Real Rates (Correlation Check)", height=350, margin=dict(l=0,r=0,t=30,b=0), template="plotly_dark")
-    st.plotly_chart(fig_macro, use_container_width=True)
+fig_macro = make_subplots(specs=[[{"secondary_y": True}]])
+fig_macro.add_trace(go.Scatter(x=df.index, y=df["Gold"], name="Gold", line=dict(color="#FFD700")), secondary_y=False)
+fig_macro.add_trace(go.Scatter(x=df.index, y=df["10Y_TIPS"], name="Real Yield (Inv)", line=dict(color="#00FFFF")), secondary_y=True)
+fig_macro.update_yaxes(title_text="Gold", secondary_y=False)
+fig_macro.update_yaxes(title_text="Real Yield (%)", reversed=True, secondary_y=True)
+fig_macro.update_layout(title="Gold vs Real Rates (Correlation Check)", height=350, margin=dict(l=0,r=0,t=30,b=0))
+st.plotly_chart(fig_macro, use_container_width=True)
 
 # --- Layer 2: Funds Flow (The "Who") ---
 st.markdown("---")
@@ -215,14 +197,12 @@ with col_f1:
     st.metric("CFTC Net Longs (Simulated)", f"{cftc_net:,.0f}", "Extreme High")
     if cftc_percentile > 90:
         st.error(f"⚠️ Crowded Trade: {cftc_percentile}th Percentile. Risk of Liquidation.")
-    elif cftc_percentile < 10:
-        st.success("🟢 Capitulation: Potential Bottom.")
     else:
         st.info("Funds Positioning Normal")
 
-with col_f2:
-    gld_px = latest.get("GLD", 0)
-    st.metric("GLD ETF Price", f"${gld_px:.2f}")
+# GLD Divergence Logic
+gld_holdings = latest.get("GLD", 0) # This is Price, implies holdings roughly (correlation). Real holdings need specific ticker.
+# Converting GLD price to rough tonnage or just using price trend divergence
 
 # --- Layer 3: Technical Execution (The "Where") ---
 st.markdown("---")
@@ -230,45 +210,30 @@ st.markdown("### 3. Execution (Key Levels)")
 st.caption("Liquidity Zones & Pivot Points")
 
 # Calculate Pivots
-if "Gold" in df.columns:
-    high = df["Gold"].rolling(5).max().iloc[-1]
-    low = df["Gold"].rolling(5).min().iloc[-1]
-    close = latest["Gold"]
-    pp = (high + low + close) / 3
-    s1 = 2 * pp - high
-    r1 = 2 * pp - low
+high = df["Gold"].rolling(5).max().iloc[-1]
+low = df["Gold"].rolling(5).min().iloc[-1]
+close = latest["Gold"]
+pp = (high + low + close) / 3
+s1 = 2 * pp - high
+r1 = 2 * pp - low
 
-    t_col1, t_col2, t_col3 = st.columns(3)
-    t_col1.metric("Pivot Point", f"${pp:.1f}")
-    t_col2.metric("Support 1 (Buy Zone)", f"${s1:.1f}")
-    t_col3.metric("Resistance 1 (Sell Zone)", f"${r1:.1f}")
+t_col1, t_col2, t_col3 = st.columns(3)
+t_col1.metric("Pivot Point", f"${pp:.1f}")
+t_col2.metric("Support 1 (Buy Zone)", f"${s1:.1f}")
+t_col3.metric("Resistance 1 (Sell Zone)", f"${r1:.1f}")
 
-    # Cross-Border Arb
-    usdcny = latest.get("USDCNY", 7.2)
-    if usdcny > 0:
-        au_td_price = gold_price / 31.1035 * usdcny + 10 # Mock premium logic if real SGE not avail
-        premium = au_td_price - (gold_price / 31.1035 * usdcny)
-        
-        t_col4, = st.columns(1)
-        if premium > 15:
-            st.warning(f"🇨🇳 Domestic Premium High (+{premium:.1f}). Arb Window Open.")
-        else:
-            st.info(f"Domestic Premium Normal (+{premium:.1f})")
+# Cross-Border Arb
+usdcny = latest.get("USDCNY", 7.2)
+au_td_price = gold_price / 31.1035 * usdcny + 10 # Mock premium
+premium = au_td_price - (gold_price / 31.1035 * usdcny)
+
+if premium > 15:
+    st.warning(f"🇨🇳 Domestic Premium High (+{premium:.1f}). Arb Window Open.")
+else:
+    st.info(f"Domestic Premium Normal (+{premium:.1f})")
 
 # --- Layer 4: Reference ---
-st.markdown("---")
-st.markdown("### 4. Reference: Central Bank & Forecasts")
-
-with st.expander("📚 Central Bank Holdings (Monthly)", expanded=True):
-    if "CB_China_Gold" in df.columns:
-        # Resample to monthly to show trend
-        df_m = df[["CB_China_Gold", "CB_US_Gold"]].resample('M').last().dropna()
-        
-        fig_cb = make_subplots(specs=[[{"secondary_y": True}]])
-        fig_cb.add_trace(go.Bar(x=df_m.index, y=df_m["CB_China_Gold"], name="China Gold Reserves (oz)"), secondary_y=False)
-        fig_cb.add_trace(go.Scatter(x=df_m.index, y=df_m["CB_US_Gold"], name="US Gold Reserves (oz)", line=dict(dash='dot')), secondary_y=True)
-        fig_cb.update_layout(height=300, margin=dict(l=0,r=0,t=20,b=0), template="plotly_dark")
-        st.plotly_chart(fig_cb, use_container_width=True)
-    else:
-        st.write("Central Bank data not available.")
+with st.expander("📚 Reference: Central Bank & Forecasts", expanded=False):
+    st.write("Central Bank Holdings data would go here...")
+    st.write("Forecast table would go here...")
 
